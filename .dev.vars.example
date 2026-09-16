@@ -1,4 +1,0 @@
-TOMTOM_API_KEY=your_tomtom_key_here
-AUTH_TOKEN=choose_a_long_random_string
-HOME_ADDRESS=Rua, número, cidade, estado, CEP
-NTFY_TOPIC=choose_a_hard_to_guess_topic_name

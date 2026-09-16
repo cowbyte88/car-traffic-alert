@@ -1,6 +1,8 @@
-// Cloudflare Worker: triggered by an iOS Shortcuts automation (Bluetooth car connect)
+// Vercel Edge Function: triggered by an iOS Shortcuts automation (Bluetooth car connect)
 // -> checks live traffic time + incidents from home to two destinations via TomTom
 // -> pushes a summary notification via ntfy.sh
+
+export const config = { runtime: "edge" };
 
 const TRAFFIC_EMOJI = (delayMin) => {
   if (delayMin >= 15) return "🔴";
@@ -60,7 +62,7 @@ async function incidentsInBbox(bbox, apiKey) {
   if (!res.ok) return []; // incidents are a bonus; don't fail the whole request over this
   const data = await res.json();
   const incidents = data.incidents || [];
-  // 1 = Accident, 8 = Road Closed, 9 = Road Works, 6 = Jam (only surface the serious ones)
+  // 1 = Accident, 8 = Road Closed, 9 = Road Works (only surface the serious ones)
   const relevant = incidents.filter((i) => [1, 8, 9].includes(i.properties?.iconCategory));
   return relevant.slice(0, 2).map((i) => {
     const desc = i.properties?.events?.[0]?.description;
@@ -104,32 +106,31 @@ async function sendNtfy(topic, title, message) {
   });
 }
 
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    if (url.searchParams.get("key") !== env.AUTH_TOKEN) {
-      return new Response("Unauthorized", { status: 401 });
-    }
+export default async function handler(request) {
+  const url = new URL(request.url);
+  const env = process.env;
 
-    try {
-      const apiKey = env.TOMTOM_API_KEY;
-      const home = await geocode(env.HOME_ADDRESS, apiKey);
-      const boca = await geocode(env.DEST_BOCA, apiKey);
-      const pbg = await geocode(env.DEST_PBG, apiKey);
+  if (url.searchParams.get("key") !== env.AUTH_TOKEN) {
+    return new Response("Unauthorized", { status: 401 });
+  }
 
-      const [lineBoca, linePbg] = await Promise.all([
-        describeLeg("RMBJJ (Delray)", home, boca, apiKey),
-        describeLeg("LifeTime (PBG)", home, pbg, apiKey),
-      ]);
+  try {
+    const apiKey = env.TOMTOM_API_KEY;
+    const home = await geocode(env.HOME_ADDRESS, apiKey);
+    const boca = await geocode(env.DEST_BOCA, apiKey);
+    const pbg = await geocode(env.DEST_PBG, apiKey);
 
-      const message = `${lineBoca}\n\n${linePbg}`;
-      await sendNtfy(env.NTFY_TOPIC, "Trânsito ao saír de casa", message);
+    const [lineBoca, linePbg] = await Promise.all([
+      describeLeg("RMBJJ (Delray)", home, boca, apiKey),
+      describeLeg("LifeTime (PBG)", home, pbg, apiKey),
+    ]);
 
-      return new Response(message, { status: 200 });
-    } catch (err) {
-      // Still notify so you know the check failed, instead of silently doing nothing.
-      await sendNtfy(env.NTFY_TOPIC, "Erro no alerta de trânsito", String(err.message || err));
-      return new Response(`Error: ${err.message || err}`, { status: 500 });
-    }
-  },
-};
+    const message = `${lineBoca}\n\n${linePbg}`;
+    await sendNtfy(env.NTFY_TOPIC, "Trânsito ao saír de casa", message);
+
+    return new Response(message, { status: 200 });
+  } catch (err) {
+    await sendNtfy(env.NTFY_TOPIC, "Erro no alerta de trânsito", String(err.message || err));
+    return new Response(`Error: ${err.message || err}`, { status: 500 });
+  }
+}
