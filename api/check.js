@@ -125,7 +125,7 @@ export default async function handler(request) {
       describeLeg("LifeTime (PBG)", home, pbg, apiKey),
     ]);
 
-    const message = `${lineBoca}\n\n${linePbg}`;
+    const message = `${linePbg}\n\n${lineBoca}`;
     await sendNtfy(env.NTFY_TOPIC, "Trânsito ao saír de casa", message);
 
     return new Response(message, { status: 200 });
