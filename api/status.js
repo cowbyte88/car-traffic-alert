@@ -97,12 +97,13 @@ export default async function handler(request) {
     const boca = await geocode(env.DEST_BOCA, apiKey);
     const pbg = await geocode(env.DEST_PBG, apiKey);
 
-    const [south, north] = await Promise.all([
+    const [south, north, northReturn] = await Promise.all([
       legStatus("Hypoluxo → Boca/Delray (sul)", home, boca, apiKey),
-      legStatus("Hypoluxo → Palm Beach Gardens (norte)", home, pbg, apiKey),
+      legStatus("Hypoluxo → Palm Beach Gardens (ida)", home, pbg, apiKey),
+      legStatus("Palm Beach Gardens → Hypoluxo (volta)", pbg, home, apiKey),
     ]);
 
-    return new Response(JSON.stringify({ south, north, updated: new Date().toISOString() }), {
+    return new Response(JSON.stringify({ south, north, northReturn, updated: new Date().toISOString() }), {
       status: 200,
       headers,
     });
